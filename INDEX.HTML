@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ärrä-henkinen Kassajärjestelmä</title>
+    <style>
+        :root {
+            --primary-color: #002f6c; /* R-kioskin sininen */
+            --accent-color: #f2a900;  /* R-kioskin keltainen */
+            --danger-color: #dc3545;
+            --success-color: #28a745;
+            --bg-color: #f4f6f9;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); display: flex; flex-direction: column; height: 100vh; }
+
+        /* Yläpalkki navigointiin */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid var(--accent-color);
+        }
+
+        .nav-button {
+            background: transparent;
+            border: 2px solid white;
+            color: white;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+
+        .nav-button.active {
+            background-color: var(--accent-color);
+            color: var(--primary-color);
+            border-color: var(--accent-color);
+        }
+
+        /* Päänäkymät */
+        .view { display: none; flex-grow: 1; padding: 15px; height: calc(100vh - 60px); }
+        .view.active { display: flex; }
+
+        /* ================= KASSANÄKYMÄ ================= */
+        #kassa-view { gap: 15px; }
+        
+        #kuitti-puoli {
+            width: 35%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+        }
+
+        #viivakoodi-syote {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #ostoskori {
+            flex-grow: 1;
+            overflow-y: auto;
+            border-bottom: 2px dashed #ccc;
+            margin-bottom: 10px;
+        }
+
+        .tuoterivi {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        #yhteensa-laatikko {
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .kassa-toiminnot { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 15px; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-peruuta { background-color: var(--danger-color); }
+        .btn-maksu { background-color: var(--success-color); }
+
+        #paneeli-puoli { width: 65%; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* Kategoriat / Välilehdet kassassa */
+        .kategoria-valikko { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 5px; }
+        .kat-tab { background: #ddd; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .kat-tab.active { background: var(--primary-color); color: white; }
+
+        #tuote-ruudukko {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .pikavalinta-nappi {
+            background: white;
+            border: 1px solid #ccc;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 6px;
+            padding: 15px 10px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 110px;
+        }
+        .pikavalinta-nappi:active { transform: scale(0.97); }
+        .pika-hinta { color: #666; font-size: 14px; font-weight: bold; margin-top: 5px; }
+
+        /* ================= HALLINTANÄKYMÄ ================= */
+        #hallinta-view { flex-direction: column; gap: 20px; overflow-y: auto; }
+        .hallinta-osio { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: var(--primary-color); color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; background-color: var(--danger-color); border: none; color: white; cursor: pointer; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ÄrräKassa v2.0</h1>
+        <div>
+            <button class="nav-button active" onclick="vaihdaNakyma('kassa')">Kassa</button>
+            <button class="nav-button" onclick="vaihdaNakyma('hallinta')">Tuotehallinta & Varasto</button>
+        </div>
+    </header>
+
+    <div id="kassa-view" class="view active">
+        <div id="kuitti-puoli">
+            <input type="text" id="viivakoodi-syote" placeholder="Skannaa koodi (paina Enter)..." autofocus>
+            
+            <div id="ostoskori"></div>
+            
+            <div id="yhteensa-laatikko">
+                <span>Yhteensä:</span>
+                <span id="loppusumma">0.00 €</span>
+            </div>
+            <div class="kassa-toiminnot">
+                <button class="btn btn-peruuta" onclick="tyhjennaKassa()">Tyhjennä</button>
+                <button class="btn btn-maksu" onclick="maksa()">MAKSU</button>
+            </div>
+        </div>
+
+        <div id="paneeli-puoli">
+            <div class="kategoria-valikko" id="kategoria-tabs">
+                </div>
+            <div id="tuote-ruudukko">
+                </div>
+        </div>
+    </div>
+
+    <div id="hallinta-view" class="view">
+        <div class="hallinta-osio">
+            <h2>Lisää tai Päivitä Tuote</h2>
+            <br>
+            <form id="tuote-lomake" onsubmit="tallennaTuote(event)">
+                <div class="form-group">
+                    <label>Tuotteen nimi:</label>
+                    <input type="text" id="tuote-nimi" required>
+                </div>
+                <div class="form-group">
+                    <label>Hinta (€):</label>
+                    <input type="number" step="0.01" id="tuote-hinta" required>
+                </div>
+                <div class="form-group">
+                    <label>Viivakoodi / EAN (Voi olla mikä vain numero):</label>
+                    <input type="text" id="tuote-koodi">
+                </div>
+                <div class="form-group">
+                    <label>Tuoteryhmä (Kategoria):</label>
+                    <select id="tuote-kategoria">
+                        <option value="Kahvit">Kahvit & Juomat</option>
+                        <option value="Paistopiste">Paistopiste</option>
+                        <option value="Makeiset">Makeiset & Sipsit</option>
+                        <option value="Palvelut">Palvelut & Liput</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-maksu" style="width: auto; padding: 10px 20px;">Tallenna Tuotetietoihin</button>
+            </form>
+        </div>
+
+        <div class="hallinta-osio">
+            <h2>Kaikki Tuotteet Järjestelmässä</h2>
+            <table id="tuote-taulukko">
+                <thead>
+                    <tr>
+                        <th>Nimi</th>
+                        <th>Hinta</th>
+                        <th>Viivakoodi</th>
+                        <th>Kategoria</th>
+                        <th>Poista</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Alustetaan oletustuotteet jos muisti on tyhjä
+        const oletusTuotteet = [
+            { nimi: "Ärrä Kahvi (M)", hinta: 2.50, koodi: "111", kategoria: "Kahvit" },
+            { nimi: "Korvapuusti", hinta: 2.90, koodi: "222", kategoria: "Paistopiste" },
+            { nimi: "Ärrä Hodari", hinta: 4.50, koodi: "333", kategoria: "Paistopiste" },
+            { nimi: "Ärrävesi 0.5L", hinta: 2.00, koodi: "444", kategoria: "Kahvit" },
+            { nimi: "Tupla Maxi", hinta: 1.20, koodi: "641150123456", kategoria: "Makeiset" }
+        ];
+
+        let tuotteet = JSON.parse(localStorage.getItem('arrat_tuotteet')) || oletusTuotteet;
+        let ostoskori = [];
+        let nykyinenKategoria = "Kahvit";
+
+        // Alustus kun sivu latautuu
+        window.onload = function() {
+            tallennaMuistiin();
+            paivitaKassaNakyma();
+            paivitaHallintaTaulukko();
+
+            // Viivakoodinlukijan kuuntelija (Enter-painallus)
+            document.getElementById('viivakoodi-syote').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    lueViivakoodi(this.value);
+                    this.value = ''; // Tyhjennetään kenttä skannauksen jälkeen
+                }
+            });
+        };
+
+        function tallennaMuistiin() {
+            localStorage.setItem('arrat_tuotteet', JSON.stringify(tuotteet));
+        }
+
+        // Navigointi välilehtien välillä
+        function vaihdaNakyma(nakyma) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
+            
+            if(nakyma === 'kassa') {
+                document.getElementById('kassa-view').classList.add('active');
+                event.target.classList.add('active');
+                paivitaKassaNakyma();
+                document.getElementById('viivakoodi-syote').focus();
+            } else {
+                document.getElementById('hallinta-view').classList.add('active');
+                event.target.classList.add('active');
+                paivitaHallintaTaulukko();
+            }
+        }
+
+        // ================= KASSAN TOIMINNALLISUUDET =================
+
+        function paivitaKassaNakyma() {
+            // Päivitä kategoriatapit
+            const katSetti = new Set(tuotteet.map(t => t.kategoria));
+            const katAlue = document.getElementById('kategoria-tabs');
+            katAlue.innerHTML = '';
+            
+            katSetti.forEach(kat => {
+                const nappe = document.createElement('button');
+                nappe.className = `kat-tab ${kat === nykyinenKategoria ? 'active' : ''}`;
+                nappe.innerText = kat;
+                nappe.onclick = () => { nykyinenKategoria = kat; paivitaKassaNakyma(); };
+                katAlue.appendChild(nappe);
+            });
+
+            // Päivitä tuotepainikkeet
+            const ruudukko = document.getElementById('tuote-ruudukko');
+            ruudukko.innerHTML = '';
+            
+            const suodatetut = tuotteet.filter(t => t.kategoria === nykyinenKategoria);
+            suodatetut.forEach(tuote => {
+                const pikaNappi = document.createElement('button');
+                pikaNappi.className = 'pikavalinta-nappi';
+                pikaNappi.onclick = () => lisaaOstoskoriin(tuote);
+                pikaNappi.innerHTML = `
+                    <span>${tuote.nimi}</span>
+                    <span class="pika-hinta">${tuote.hinta.toFixed(2)} €</span>
+                `;
+                ruudukko.appendChild(pikaNappi);
+            });
+        }
+
+        function lisaaOstoskoriin(tuote) {
+            let loytynyt = ostoskori.find(item => item.nimi === tuote.nimi);
+            if (loytynyt) {
+                loytynyt.maara++;
+            } else {
+                ostoskori.push({ nimi: tuote.nimi, hinta: tuote.hinta, maara: 1 });
+            }
+            paivitaKuitti();
+        }
+
+        // Viivakoodin lukutoiminto
+        function lueViivakoodi(koodi) {
+            const tuote = tuotteet.find(t => t.koodi === koodi.trim());
+            if (tuote) {
+                lisaaOstoskoriin(tuote);
+            } else {
+                alert(`Tuotetta koodilla "${koodi}" ei löydetty. Voit lisätä sen tuotehallinnasta.`);
+            }
+        }
+
+        function paivitaKuitti() {
+            const koriElem = document.getElementById('ostoskori');
+            koriElem.innerHTML = '';
+            let summa = 0;
+
+            ostoskori.forEach(tuote => {
+                const riviSumma = tuote.hinta * tuote.maara;
+                summa += riviSumma;
+
+                const rivi = document.createElement('div');
+                rivi.className = 'tuoterivi';
+                rivi.innerHTML = `
+                    <span>${tuote.maara}x ${tuote.nimi}</span>
+                    <span>${riviSumma.toFixed(2)} €</span>
+                `;
+                koriElem.appendChild(rivi);
+            });
+
+            document.getElementById('loppusumma').innerText = summa.toFixed(2) + ' €';
+        }
+
+        function tyhjennaKassa() {
+            ostoskori = [];
+            paivitaKuitti();
+            document.getElementById('viivakoodi-syote').focus();
+        }
+
+        function maksa() {
+            if(ostoskori.length === 0) return alert("Kori on tyhjä!");
+            alert("Maksu hyväksytty! Tulostetaan kuitti...");
+            tyhjennaKassa();
+        }
+
+        // ================= HALLINNAN TOIMINNALLISUUDET =================
+
+        function tallennaTuote(e) {
+            e.preventDefault();
+            const nimi = document.getElementById('tuote-nimi').value;
+            const hinta = parseFloat(document.getElementById('tuote-hinta').value);
+            const koodi = document.getElementById('tuote-koodi').value;
+            const kategoria = document.getElementById('tuote-kategoria').value;
+
+            // Jos tuote on jo olemassa samalla nimellä, päivitetään se, muuten lisätään uusi
+            const indeksi = tuotteet.findIndex(t => t.nimi === nimi);
+            if (indeksi > -1) {
+                tuotteet[indeksi] = { nimi, hinta, koodi, kategoria };
+            } else {
+                tuotteet.push({ nimi, hinta, koodi, kategoria });
+            }
+
+            tallennaMuistiin();
+            paivitaHallintaTaulukko();
+            document.getElementById('tuote-lomake').reset();
+            alert("Tuote tallennettu onnistuneesti!");
+        }
+
+        function poistaTuote(indeksi) {
+            if(confirm("Haluatko varmasti poistaa tämän tuotteen kassan valikoimasta?")) {
+                tuotteet.splice(indeksi, 1);
+                tallennaMuistiin();
+                paivitaHallintaTaulukko();
+            }
+        }
+
+        function paivitaHallintaTaulukko() {
+            const tbody = document.querySelector('#tuote-taulukko tbody');
+            tbody.innerHTML = '';
+
+            tuotteet.forEach((tuote, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${tuote.nimi}</td>
+                    <td>${tuote.hinta.toFixed(2)} €</td>
+                    <td>${tuote.koodi || '-'}</td>
+                    <td>${tuote.kategoria}</td>
+                    <td><button class="btn-sm" onclick="poistaTuote(${index})">Poista</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
